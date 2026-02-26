@@ -29,4 +29,9 @@ class Lead extends Model
     {
         return $this->hasMany(Deal::class);
     }
+
+    public function whatsappMessages(): HasMany
+    {
+        return $this->hasMany(WhatsappMessage::class);
+    }
 }

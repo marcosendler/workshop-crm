@@ -62,7 +62,7 @@ it('sends webhook config when creating instance with webhook url configured', fu
 
     Http::assertSent(function ($request) {
         return $request['webhook']['url'] === 'https://myapp.test/api/webhook/whatsapp'
-            && $request['webhook']['events'] === ['CONNECTION_UPDATE']
+            && $request['webhook']['events'] === ['CONNECTION_UPDATE', 'MESSAGES_UPSERT']
             && $request['webhook']['headers']['x-webhook-secret'] === 'my-secret-token';
     });
 });

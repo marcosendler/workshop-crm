@@ -6,7 +6,7 @@ use App\Models\Lead;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WhatsappConnection;
-use Illuminate\Support\Facades\Http;
+use App\Models\WhatsappMessage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -44,30 +44,33 @@ it('whatsapp tab hidden when no connection exists', function () {
         ->assertDontSee('WhatsApp');
 });
 
-it('messages are loaded when whatsapp tab is opened', function () {
-    Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([
-            [
-                'key' => ['remoteJid' => '5511999999999@s.whatsapp.net', 'fromMe' => false, 'id' => 'msg-1'],
-                'message' => ['conversation' => 'Olá, preciso de ajuda'],
-                'messageTimestamp' => '1717689000',
-            ],
-            [
-                'key' => ['remoteJid' => '5511999999999@s.whatsapp.net', 'fromMe' => true, 'id' => 'msg-2'],
-                'message' => ['extendedTextMessage' => ['text' => 'Claro, como posso ajudar?']],
-                'messageTimestamp' => '1717689097',
-            ],
-        ]),
-    ]);
-
+it('messages are loaded from local database when whatsapp tab is opened', function () {
     $tenant = Tenant::factory()->create();
     $owner = User::factory()->businessOwner()->for($tenant)->create();
     $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5511999999999']);
     $deal = Deal::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'lead_id' => $lead->id]);
 
-    WhatsappConnection::factory()->connected()->create([
+    $connection = WhatsappConnection::factory()->connected()->create([
         'tenant_id' => $tenant->id,
         'instance_name' => 'my-instance',
+    ]);
+
+    WhatsappMessage::factory()->create([
+        'tenant_id' => $tenant->id,
+        'whatsapp_connection_id' => $connection->id,
+        'lead_id' => $lead->id,
+        'from_me' => false,
+        'body' => 'Olá, preciso de ajuda',
+        'message_timestamp' => 1717689000,
+    ]);
+
+    WhatsappMessage::factory()->create([
+        'tenant_id' => $tenant->id,
+        'whatsapp_connection_id' => $connection->id,
+        'lead_id' => $lead->id,
+        'from_me' => true,
+        'body' => 'Claro, como posso ajudar?',
+        'message_timestamp' => 1717689097,
     ]);
 
     Livewire::actingAs($owner)
@@ -79,24 +82,22 @@ it('messages are loaded when whatsapp tab is opened', function () {
 });
 
 it('salesperson can view conversation for their assigned lead', function () {
-    Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([
-            [
-                'key' => ['remoteJid' => '5511999999999@s.whatsapp.net', 'fromMe' => false, 'id' => 'msg-1'],
-                'message' => ['conversation' => 'Mensagem do lead'],
-                'messageTimestamp' => '1717689000',
-            ],
-        ]),
-    ]);
-
     $tenant = Tenant::factory()->create();
     $sp = User::factory()->salesperson()->for($tenant)->create();
     $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $sp->id, 'phone' => '5511999999999']);
     $deal = Deal::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $sp->id, 'lead_id' => $lead->id]);
 
-    WhatsappConnection::factory()->connected()->create([
+    $connection = WhatsappConnection::factory()->connected()->create([
         'tenant_id' => $tenant->id,
         'instance_name' => 'my-instance',
+    ]);
+
+    WhatsappMessage::factory()->create([
+        'tenant_id' => $tenant->id,
+        'whatsapp_connection_id' => $connection->id,
+        'lead_id' => $lead->id,
+        'body' => 'Mensagem do lead',
+        'message_timestamp' => 1717689000,
     ]);
 
     Livewire::actingAs($sp)
@@ -122,8 +123,6 @@ it('salesperson cannot view conversation for another user lead', function () {
 });
 
 it('shows message when lead has no phone number', function () {
-    Http::fake();
-
     $tenant = Tenant::factory()->create();
     $owner = User::factory()->businessOwner()->for($tenant)->create();
     $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => null]);
@@ -139,37 +138,9 @@ it('shows message when lead has no phone number', function () {
         ->dispatch('openDealDetail', dealId: $deal->id)
         ->call('setTab', 'whatsapp')
         ->assertSee('O lead não possui número de telefone cadastrado.');
-
-    Http::assertNothingSent();
-});
-
-it('shows error message when api fails to load messages', function () {
-    Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response(['error' => 'Server Error'], 500),
-    ]);
-
-    $tenant = Tenant::factory()->create();
-    $owner = User::factory()->businessOwner()->for($tenant)->create();
-    $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5511999999999']);
-    $deal = Deal::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'lead_id' => $lead->id]);
-
-    WhatsappConnection::factory()->connected()->create([
-        'tenant_id' => $tenant->id,
-        'instance_name' => 'my-instance',
-    ]);
-
-    Livewire::actingAs($owner)
-        ->test(DealDetail::class)
-        ->dispatch('openDealDetail', dealId: $deal->id)
-        ->call('setTab', 'whatsapp')
-        ->assertSet('whatsappError', 'Erro ao carregar mensagens do WhatsApp.');
 });
 
 it('shows empty state when no messages exist', function () {
-    Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
-    ]);
-
     $tenant = Tenant::factory()->create();
     $owner = User::factory()->businessOwner()->for($tenant)->create();
     $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5511999999999']);
@@ -185,4 +156,40 @@ it('shows empty state when no messages exist', function () {
         ->dispatch('openDealDetail', dealId: $deal->id)
         ->call('setTab', 'whatsapp')
         ->assertSee('Nenhuma mensagem encontrada.');
+});
+
+it('does not load messages from other leads', function () {
+    $tenant = Tenant::factory()->create();
+    $owner = User::factory()->businessOwner()->for($tenant)->create();
+    $lead1 = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5511111111111']);
+    $lead2 = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5522222222222']);
+    $deal = Deal::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'lead_id' => $lead1->id]);
+
+    $connection = WhatsappConnection::factory()->connected()->create([
+        'tenant_id' => $tenant->id,
+        'instance_name' => 'my-instance',
+    ]);
+
+    WhatsappMessage::factory()->create([
+        'tenant_id' => $tenant->id,
+        'whatsapp_connection_id' => $connection->id,
+        'lead_id' => $lead1->id,
+        'body' => 'Mensagem do lead 1',
+        'message_timestamp' => 1717689000,
+    ]);
+
+    WhatsappMessage::factory()->create([
+        'tenant_id' => $tenant->id,
+        'whatsapp_connection_id' => $connection->id,
+        'lead_id' => $lead2->id,
+        'body' => 'Mensagem do lead 2',
+        'message_timestamp' => 1717689100,
+    ]);
+
+    Livewire::actingAs($owner)
+        ->test(DealDetail::class)
+        ->dispatch('openDealDetail', dealId: $deal->id)
+        ->call('setTab', 'whatsapp')
+        ->assertSee('Mensagem do lead 1')
+        ->assertDontSee('Mensagem do lead 2');
 });

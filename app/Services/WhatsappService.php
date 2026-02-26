@@ -42,7 +42,7 @@ class WhatsappService
                 'url' => $webhookUrl,
                 'byEvents' => false,
                 'base64' => false,
-                'events' => ['CONNECTION_UPDATE'],
+                'events' => ['CONNECTION_UPDATE', 'MESSAGES_UPSERT'],
             ];
 
             $webhookSecret = config('services.evolution_api.webhook_secret');

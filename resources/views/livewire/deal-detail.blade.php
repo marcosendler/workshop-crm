@@ -166,7 +166,7 @@
                         </div>
 
                     @elseif($activeTab === 'whatsapp')
-                        <div class="flex h-full flex-col">
+                        <div class="flex h-full flex-col" wire:poll.5s="loadWhatsappMessages">
                             @if($whatsappError)
                                 <div class="mb-3 rounded-lg bg-secondary-red/10 p-3 text-sm text-secondary-red">
                                     {{ $whatsappError }}

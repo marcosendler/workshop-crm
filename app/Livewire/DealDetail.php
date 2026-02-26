@@ -9,6 +9,7 @@ use App\Models\Lead;
 use App\Models\Role;
 use App\Models\User;
 use App\Models\UserStatus;
+use App\Models\WhatsappMessage;
 use App\Services\DealNoteService;
 use App\Services\DealService;
 use App\Services\LeadService;
@@ -254,31 +255,18 @@ class DealDetail extends Component
             return;
         }
 
-        try {
-            $connection = auth()->user()->tenant->whatsappConnection;
-            $service = WhatsappService::make();
-            $messages = $service->fetchMessages($connection->instance_name, $phone);
+        $this->whatsappMessages = WhatsappMessage::where('lead_id', $deal->lead_id)
+            ->orderBy('message_timestamp')
+            ->get()
+            ->map(fn (WhatsappMessage $msg) => [
+                'id' => $msg->message_id,
+                'fromMe' => $msg->from_me,
+                'text' => $msg->body,
+                'timestamp' => $msg->message_timestamp,
+            ])
+            ->toArray();
 
-            $this->whatsappMessages = collect($messages)
-                ->map(fn (array $msg) => [
-                    'id' => $msg['key']['id'] ?? null,
-                    'fromMe' => $msg['key']['fromMe'] ?? false,
-                    'text' => $msg['message']['conversation']
-                        ?? $msg['message']['extendedTextMessage']['text']
-                        ?? '',
-                    'timestamp' => isset($msg['messageTimestamp'])
-                        ? (int) $msg['messageTimestamp']
-                        : null,
-                ])
-                ->filter(fn (array $msg) => $msg['text'] !== '')
-                ->values()
-                ->toArray();
-
-            $this->whatsappError = null;
-        } catch (\Exception $e) {
-            $this->whatsappMessages = [];
-            $this->whatsappError = 'Erro ao carregar mensagens do WhatsApp.';
-        }
+        $this->whatsappError = null;
     }
 
     public function sendWhatsappMessage(): void
@@ -303,6 +291,19 @@ class DealDetail extends Component
             $connection = auth()->user()->tenant->whatsappConnection;
             $service = WhatsappService::make();
             $result = $service->sendMessage($connection->instance_name, $phone, $this->whatsappMessageText);
+
+            $sanitizedPhone = preg_replace('/\D/', '', $phone);
+
+            WhatsappMessage::create([
+                'tenant_id' => $connection->tenant_id,
+                'whatsapp_connection_id' => $connection->id,
+                'lead_id' => $deal->lead_id,
+                'remote_jid' => $sanitizedPhone.'@s.whatsapp.net',
+                'message_id' => $result['key']['id'] ?? null,
+                'from_me' => true,
+                'body' => $this->whatsappMessageText,
+                'message_timestamp' => time(),
+            ]);
 
             $this->whatsappMessages[] = [
                 'id' => $result['key']['id'] ?? null,

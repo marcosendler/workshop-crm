@@ -60,6 +60,7 @@ new #[Layout('layouts.app')] #[Title('WhatsApp')] class extends Component {
             $qrResponse = $service->getQrCode($connection->instance_name);
             $this->qrCodeBase64 = $qrResponse['base64'] ?? null;
         } catch (\Exception $e) {
+            dd($e);
             $this->errorMessage = 'Erro ao conectar com o WhatsApp. Tente novamente.';
         }
     }

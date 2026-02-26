@@ -1,59 +1,125 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Workshop CRM
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+CRM multi-tenant MVP para pequenas e medias empresas, com pipeline Kanban de vendas e integracao com WhatsApp via EvolutionAPI v2.
 
-## About Laravel
+**Stack:** Laravel 12 | Livewire 4 | Tailwind CSS 4 | PostgreSQL 18 | Pest 4
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+**Funcionalidades:** Registro de tenant, RBAC (Business Owner / Salesperson), gestao de leads e deals no Kanban, notas, atribuicao de responsaveis, notificacoes por email, dashboard de vendas e conversas via WhatsApp.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+---
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Rodando o projeto
 
-## Learning Laravel
+### Pre-requisitos
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+- [Docker](https://www.docker.com/) instalado
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) instalado (para o fluxo de desenvolvimento com IA)
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+### Setup
 
-## Laravel Sponsors
+```bash
+# Clone o repositorio
+git clone <url-do-repo>
+cd workshop-crm
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+# Copie o .env
+cp .env.example .env
 
-### Premium Partners
+# Suba os containers com Sail
+./vendor/bin/sail up -d
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+# Instale dependencias
+./vendor/bin/sail composer install
+./vendor/bin/sail npm install
 
-## Contributing
+# Gere a key e rode as migrations
+./vendor/bin/sail artisan key:generate
+./vendor/bin/sail artisan migrate --seed
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# Build dos assets
+./vendor/bin/sail npm run build
+```
 
-## Code of Conduct
+### Comandos do dia-a-dia
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+```bash
+# Rodar testes
+./vendor/bin/sail artisan test --compact
 
-## Security Vulnerabilities
+# Formatar codigo PHP
+./vendor/bin/sail bin pint --dirty
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+# Subir/parar containers
+./vendor/bin/sail up -d
+./vendor/bin/sail stop
+```
 
-## License
+---
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+## Fluxo de prompts para gerar o projeto
+
+Na pasta `prompts/` existem 4 prompts que foram usados em sequencia para planejar o projeto inteiro antes de codar:
+
+1. **`criar-descricao-do-projeto.md`** — Gera a descricao geral do projeto (`docs/project-description.md`)
+2. **`user-stories.md`** — Gera as historias de usuario (`docs/user-stories.md`)
+3. **`database-structure.md`** — Gera o schema do banco de dados (`docs/database-schema.md`)
+4. **`project-phases.md`** — Gera as fases de implementacao (`docs/project-phases.md`)
+
+O fluxo e sequencial: cada prompt usa a saida do anterior como contexto. Os documentos gerados ficam em `docs/`.
+
+---
+
+## MCP Servers utilizados
+
+### Laravel Boost (via Sail)
+
+MCP server do ecossistema Laravel com acesso a schema do banco, Artisan, Tinker, logs, busca de documentacao e mais.
+
+```bash
+# Remover config antiga (se existir)
+claude mcp remove laravel-boost -s local
+
+# Adicionar com Sail
+claude mcp add -s local -t stdio laravel-boost ./vendor/bin/sail php artisan boost:mcp
+```
+
+### Serena
+
+MCP server para navegacao semantica de codigo — overview de simbolos, busca de referencias, edicao simbolica.
+
+```bash
+claude mcp add serena -- uvx --from git+https://github.com/oraios/serena serena start-mcp-ntext claude-code --project "$(pwd)"
+```
+
+### Context7
+
+MCP server para busca de documentacao atualizada de qualquer biblioteca, com exemplos de codigo.
+
+```bash
+claude mcp add --scope user --transport http context7 https://mcp.context7.com/mcp \
+  --header "CONTEXT7_API_KEY: <sua-api-key>"
+```
+
+---
+
+## Ralph Wiggum Plugin
+
+O [Ralph Wiggum](https://github.com/frankbria/ralph-claude-code) e um plugin para o Claude Code que transforma ele em um agente autonomo capaz de trabalhar em tarefas por horas sem intervencao humana.
+
+O nome vem do personagem Ralph Wiggum dos Simpsons — a filosofia e de iteracao persistente ate completar a tarefa.
+
+### Como funciona
+
+Voce inicia um loop iterativo com `/ralph-loop` passando seu prompt. O plugin intercepta saidas de sessao via stop hook e re-alimenta o prompt automaticamente, preservando todas as modificacoes de arquivo e historico git entre iteracoes. Cada iteracao ve o codebase modificado das tentativas anteriores.
+
+### Uso basico
+
+```bash
+# Iniciar o loop
+/ralph-loop "implemente a feature X" --max-iterations 10
+
+# Cancelar a qualquer momento
+/cancel-ralph
+```
+
+Na aula, tambem foi apresentado o script `ralph.sh` na raiz do projeto — um orquestrador bash que le `docs/project-phases.md`, quebra em fases individuais e alimenta cada uma ao OpenAI Codex CLI para implementacao automatica sequencial, com retry automatico em caso de falha nos testes.

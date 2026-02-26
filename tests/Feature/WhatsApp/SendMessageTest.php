@@ -6,6 +6,7 @@ use App\Models\Lead;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WhatsappConnection;
+use App\Models\WhatsappMessage;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
@@ -20,7 +21,6 @@ beforeEach(function () {
 
 it('can send a message via whatsapp', function () {
     Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
         'evo.test/message/sendText/my-instance' => Http::response([
             'key' => [
                 'remoteJid' => '5511999999999@s.whatsapp.net',
@@ -61,9 +61,44 @@ it('can send a message via whatsapp', function () {
     });
 });
 
+it('stores sent message in local database', function () {
+    Http::fake([
+        'evo.test/message/sendText/my-instance' => Http::response([
+            'key' => ['remoteJid' => '5511999999999@s.whatsapp.net', 'fromMe' => true, 'id' => 'MSG-SENT-1'],
+            'message' => ['extendedTextMessage' => ['text' => 'Mensagem salva']],
+            'messageTimestamp' => '1717689097',
+            'status' => 'PENDING',
+        ], 201),
+    ]);
+
+    $tenant = Tenant::factory()->create();
+    $owner = User::factory()->businessOwner()->for($tenant)->create();
+    $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5511999999999']);
+    $deal = Deal::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'lead_id' => $lead->id]);
+
+    $connection = WhatsappConnection::factory()->connected()->create([
+        'tenant_id' => $tenant->id,
+        'instance_name' => 'my-instance',
+    ]);
+
+    Livewire::actingAs($owner)
+        ->test(DealDetail::class)
+        ->dispatch('openDealDetail', dealId: $deal->id)
+        ->call('setTab', 'whatsapp')
+        ->set('whatsappMessageText', 'Mensagem salva')
+        ->call('sendWhatsappMessage');
+
+    $message = WhatsappMessage::where('lead_id', $lead->id)->first();
+    expect($message)->not->toBeNull();
+    expect($message->body)->toBe('Mensagem salva');
+    expect($message->from_me)->toBeTrue();
+    expect($message->message_id)->toBe('MSG-SENT-1');
+    expect($message->whatsapp_connection_id)->toBe($connection->id);
+    expect($message->tenant_id)->toBe($tenant->id);
+});
+
 it('message is sent to the lead phone number', function () {
     Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
         'evo.test/message/sendText/my-instance' => Http::response([
             'key' => ['remoteJid' => '5521988887777@s.whatsapp.net', 'fromMe' => true, 'id' => 'msg-new'],
             'message' => ['extendedTextMessage' => ['text' => 'Test']],
@@ -97,7 +132,6 @@ it('message is sent to the lead phone number', function () {
 
 it('salesperson can send messages to their assigned leads', function () {
     Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
         'evo.test/message/sendText/my-instance' => Http::response([
             'key' => ['remoteJid' => '5511999999999@s.whatsapp.net', 'fromMe' => true, 'id' => 'msg-sp'],
             'message' => ['extendedTextMessage' => ['text' => 'Mensagem do vendedor']],
@@ -141,10 +175,6 @@ it('salesperson cannot send messages to another user leads', function () {
 });
 
 it('message text is required', function () {
-    Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
-    ]);
-
     $tenant = Tenant::factory()->create();
     $owner = User::factory()->businessOwner()->for($tenant)->create();
     $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => '5511999999999']);
@@ -166,7 +196,6 @@ it('message text is required', function () {
 
 it('sent message appears in conversation immediately', function () {
     Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
         'evo.test/message/sendText/my-instance' => Http::response([
             'key' => ['remoteJid' => '5511999999999@s.whatsapp.net', 'fromMe' => true, 'id' => 'new-msg-id'],
             'message' => ['extendedTextMessage' => ['text' => 'Mensagem enviada']],
@@ -199,8 +228,6 @@ it('sent message appears in conversation immediately', function () {
 });
 
 it('shows error when lead has no phone and tries to send', function () {
-    Http::fake();
-
     $tenant = Tenant::factory()->create();
     $owner = User::factory()->businessOwner()->for($tenant)->create();
     $lead = Lead::factory()->create(['tenant_id' => $tenant->id, 'user_id' => $owner->id, 'phone' => null]);
@@ -222,7 +249,6 @@ it('shows error when lead has no phone and tries to send', function () {
 
 it('shows error on api failure when sending message', function () {
     Http::fake([
-        'evo.test/chat/findMessages/my-instance' => Http::response([]),
         'evo.test/message/sendText/my-instance' => Http::response(['error' => 'Connection failed'], 500),
     ]);
 

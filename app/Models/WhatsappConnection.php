@@ -6,6 +6,7 @@ use App\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class WhatsappConnection extends Model
 {
@@ -22,5 +23,10 @@ class WhatsappConnection extends Model
     public function whatsappConnectionStatus(): BelongsTo
     {
         return $this->belongsTo(WhatsappConnectionStatus::class);
+    }
+
+    public function messages(): HasMany
+    {
+        return $this->hasMany(WhatsappMessage::class);
     }
 }
