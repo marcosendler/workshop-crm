@@ -8,10 +8,16 @@ use App\Services\DealService;
 use App\Services\LeadService;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Layout('layouts.app')] #[Title('Kanban')] class extends Component {
+    #[On('dealUpdated')]
+    public function refreshDeals(): void
+    {
+        unset($this->dealsByStage);
+    }
     public CreateLeadForm $form;
 
     public bool $showCreateLeadModal = false;
@@ -163,8 +169,8 @@ new #[Layout('layouts.app')] #[Title('Kanban')] class extends Component {
 };
 ?>
 
-<div>
-    <div class="mb-6 flex items-center justify-between">
+<div class="flex h-full flex-col">
+    <div class="mb-4 flex items-center justify-between">
         <h2 class="text-lg font-semibold text-primary-dark">Kanban</h2>
         <x-button wire:click="openCreateLeadModal">
             <svg class="size-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
@@ -172,43 +178,68 @@ new #[Layout('layouts.app')] #[Title('Kanban')] class extends Component {
         </x-button>
     </div>
 
-    {{-- Kanban board --}}
-    <div class="flex gap-4 overflow-x-auto pb-4">
-        @foreach($this->stages as $stage)
-            <div class="w-72 flex-shrink-0">
-                {{-- Column header --}}
-                <div class="mb-3 flex items-center justify-between">
-                    <h3 class="text-sm font-semibold text-primary-dark">{{ $stage->name }}</h3>
-                    <span class="rounded-full bg-bg-light px-2 py-0.5 text-xs font-medium text-primary-grey">
-                        {{ ($this->dealsByStage[$stage->id] ?? collect())->count() }}
-                    </span>
-                </div>
+    {{-- Kanban board — horizontal scroll contained here --}}
+    <div class="flex-1 overflow-x-auto overflow-y-hidden">
+        <div class="flex h-full gap-4 pb-4">
+            @foreach($this->stages as $stage)
+                <div class="flex w-72 flex-shrink-0 flex-col">
+                    {{-- Column header --}}
+                    <div class="mb-3 flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-primary-dark">{{ $stage->name }}</h3>
+                        <span class="rounded-full bg-outline px-2 py-0.5 text-xs font-medium text-primary-grey">
+                            {{ ($this->dealsByStage[$stage->id] ?? collect())->count() }}
+                        </span>
+                    </div>
 
-                {{-- Sortable column --}}
-                <div
-                    wire:sort="handleSort({{ $stage->id }})"
-                    wire:sort:group="deals"
-                    class="min-h-[200px] space-y-3 rounded-xl bg-bg-light p-3"
-                >
-                    @foreach(($this->dealsByStage[$stage->id] ?? collect()) as $deal)
-                        <div
-                            wire:sort:item="{{ $deal->id }}"
-                            wire:key="deal-{{ $deal->id }}"
-                            class="cursor-grab rounded-lg bg-bg-white p-4 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
-                        >
-                            <h4 class="text-sm font-semibold text-primary-dark">{{ $deal->title }}</h4>
-                            <p class="mt-1 text-xs text-primary-grey">{{ $deal->lead->name }}</p>
-                            <div class="mt-3 flex items-center justify-between">
-                                <span class="text-sm font-medium text-primary">
-                                    R$ {{ number_format((float) $deal->value, 2, ',', '.') }}
-                                </span>
-                                <span class="text-xs text-primary-grey">{{ $deal->owner->name }}</span>
+                    {{-- Droppable column --}}
+                    <div
+                        x-data
+                        x-on:dragover.prevent="$el.classList.add('ring-2', 'ring-primary/30')"
+                        x-on:dragenter.prevent
+                        x-on:dragleave.self="$el.classList.remove('ring-2', 'ring-primary/30')"
+                        x-on:drop.prevent="
+                            $el.classList.remove('ring-2', 'ring-primary/30');
+                            const dealId = parseInt($event.dataTransfer.getData('deal-id'));
+                            if (dealId) {
+                                const cards = $el.querySelectorAll('[data-deal-id]');
+                                let position = 0;
+                                for (const card of cards) {
+                                    const rect = card.getBoundingClientRect();
+                                    if ($event.clientY > rect.top + rect.height / 2) position++;
+                                }
+                                $wire.handleSort({{ $stage->id }}, dealId, position);
+                            }
+                        "
+                        class="flex-1 space-y-3 rounded-xl bg-bg-white p-3 shadow-sm transition-shadow"
+                    >
+                        @foreach(($this->dealsByStage[$stage->id] ?? collect()) as $deal)
+                            <div
+                                draggable="true"
+                                data-deal-id="{{ $deal->id }}"
+                                x-on:dragstart="
+                                    $event.dataTransfer.setData('deal-id', '{{ $deal->id }}');
+                                    $event.dataTransfer.effectAllowed = 'move';
+                                    $el.classList.add('opacity-50');
+                                "
+                                x-on:dragend="$el.classList.remove('opacity-50')"
+                                wire:key="deal-{{ $deal->id }}"
+                                wire:click="$dispatch('openDealDetail', { dealId: {{ $deal->id }} })"
+                                class="cursor-grab rounded-lg border border-outline bg-bg-white p-4 shadow-sm transition-shadow hover:shadow-md active:cursor-grabbing"
+                            >
+                                <h4 class="text-sm font-semibold text-primary-dark">{{ $deal->title }}</h4>
+                                <p class="mt-1 text-xs text-primary-grey">{{ $deal->lead->name }}</p>
+                                <div class="mt-3 flex items-center justify-between">
+                                    <span class="text-sm font-medium text-primary">
+                                        R$ {{ number_format((float) $deal->value, 2, ',', '.') }}
+                                    </span>
+                                    <span class="text-xs text-primary-grey">{{ $deal->owner->name }}</span>
+                                </div>
                             </div>
-                        </div>
-                    @endforeach
+                        @endforeach
+                    </div>
                 </div>
-            </div>
-        @endforeach
+            @endforeach
+        </div>
     </div>
 
     {{-- Create Lead Modal --}}
@@ -301,6 +332,9 @@ new #[Layout('layouts.app')] #[Title('Kanban')] class extends Component {
             </div>
         </form>
     </x-modal>
+
+    {{-- Deal Detail Slide-over --}}
+    <livewire:deal-detail />
 
     {{-- Loss Reason Modal --}}
     <x-modal name="showLossReasonModal" maxWidth="md">

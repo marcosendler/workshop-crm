@@ -785,7 +785,7 @@ Connect WhatsApp via EvolutionAPI v2, view conversations, and send messages.
 
 ### Phase 10.1: EvolutionAPI Configuration & Service
 
-- [ ] Config file: `config/services.php` — add `evolution_api` section with base_url, api_key (from env vars)
+- [ ] Config file: `config/services.php` — add `evolution_api` section with base_url, api_key, webhook_url (from env vars)
 - [ ] Service: `App\Services\WhatsappService` — wraps EvolutionAPI v2 HTTP client:
   - `createInstance()` — creates a WhatsApp instance
   - `getQrCode()` — fetches QR code for connection

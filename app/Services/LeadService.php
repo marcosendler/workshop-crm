@@ -6,6 +6,7 @@ use App\Models\Deal;
 use App\Models\Lead;
 use App\Models\PipelineStage;
 use App\Models\User;
+use App\Notifications\LeadAssignedNotification;
 use Illuminate\Support\Facades\DB;
 
 class LeadService
@@ -37,6 +38,21 @@ class LeadService
         string $dealValue,
     ): Deal {
         return $this->createDealForLead($lead, $owner, $dealTitle, $dealValue);
+    }
+
+    public function assignTo(Lead $lead, User $newOwner, User $assignedBy): void
+    {
+        DB::transaction(function () use ($lead, $newOwner) {
+            $lead->update(['user_id' => $newOwner->id]);
+            $lead->deals()->update(['user_id' => $newOwner->id]);
+        });
+
+        if ($newOwner->id !== $assignedBy->id) {
+            $lead->load('deals');
+            foreach ($lead->deals as $deal) {
+                $newOwner->notify(new LeadAssignedNotification($lead, $deal));
+            }
+        }
     }
 
     private function createDealForLead(Lead $lead, User $owner, string $dealTitle, string $dealValue): Deal

@@ -124,7 +124,7 @@
             </div>
 
             {{-- Page content --}}
-            <main class="flex-1 p-6">
+            <main class="flex-1 overflow-hidden p-6">
                 {{ $slot }}
             </main>
         </div>

@@ -8,10 +8,11 @@ Route::get('/', function () {
 
 // Placeholder routes for navigation - will be replaced by Livewire page components in later phases
 Route::middleware(['auth', 'active'])->group(function () {
-    Route::view('/dashboard', 'welcome')->name('dashboard.index');
+    Route::livewire('/dashboard', 'pages::dashboard.index')->name('dashboard.index');
     Route::livewire('/kanban', 'pages::kanban.index')->name('kanban.index');
     Route::livewire('/team', 'pages::team.index')->name('team.index');
-    Route::view('/settings', 'welcome')->name('settings.index');
+    Route::livewire('/settings/whatsapp', 'pages::settings.whatsapp')->name('settings.whatsapp');
+    Route::redirect('/settings', '/settings/whatsapp')->name('settings.index');
 
     Route::post('/logout', function () {
         auth()->logout();
